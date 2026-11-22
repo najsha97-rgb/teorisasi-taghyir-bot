@@ -1,4 +1,4 @@
-﻿# 🌿 Tanẓīr al-Taghyīr (تنظير التغيير) — Telegram Bot
+# 🌿 Tanẓīr al-Taghyīr (تنظير التغيير) — Telegram Bot
 
 Bot Telegram pintar rasmi bagi karya hebat Asy-Syeikh Muhammad Ahmad ar-Rasyid (*rahimahullah*):
 **"Tanẓīr al-Taghyīr: Membina Teori Integrasi Perubahan Politik Islam"** (*Membina Teori Integrasi Fiqh Siyasah Syar'iyyah Menuju Ummah Fadhilah & Peradaban Baru Islam*).
@@ -28,8 +28,8 @@ Bot Telegram pintar rasmi bagi karya hebat Asy-Syeikh Muhammad Ahmad ar-Rasyid (
 
 5. **Penyepaduan Web PWA Rasmi:**
    - Akses terus ke Web PWA Tanẓīr al-Taghyīr:
-     - 🌐 **Cloudflare Pages (Pantas & CDN):** [teorisasi-taghyir.pages.dev](https://teorisasi-taghyir.pages.dev/)
-     - 🌐 **GitHub Pages (Sandaran):** [najsha97-rgb.github.io/teorisasi-taghyir](https://najsha97-rgb.github.io/teorisasi-taghyir/)
+     - 🌐 **Web PWA Rasmi (GitHub Pages):** [najsha97-rgb.github.io/teorisasi-taghyir](https://najsha97-rgb.github.io/teorisasi-taghyir/)
+     - 🌐 **Cloudflare Pages:** [teorisasi-taghyir.pages.dev](https://teorisasi-taghyir.pages.dev/)
 
 ---
 
