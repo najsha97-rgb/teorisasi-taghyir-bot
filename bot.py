@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 BOT TELEGRAM TANẒĪR AL-TAGHYĪR (تنظير التغيير)
 Membina Teori Integrasi Perubahan Politik Islam
@@ -56,7 +56,7 @@ BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_TANZIR", "")
 
 if os.path.exists(CONFIG_PATH):
     try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(CONFIG_PATH, "r", encoding="utf-8-sig") as f:
             cfg = json.load(f)
             if not BOT_TOKEN and cfg.get("bot_token"):
                 BOT_TOKEN = cfg.get("bot_token").strip()
