@@ -115,6 +115,29 @@ def to_tg_html(text):
     text = text.replace(r"\'", "'").replace(r'\"', '"')
     return re.sub(r'&(?!(?:amp|lt|gt|quot|apos|#\d+);)', '&amp;', text)
 
+
+def split_summary_pages(summary_text, max_len=2200):
+    if not summary_text:
+        return []
+    paras = summary_text.split("\n\n")
+    pages = []
+    cur = []
+    cur_len = 0
+    for p in paras:
+        p_str = p.strip()
+        if not p_str:
+            continue
+        if cur_len + len(p_str) > max_len and cur:
+            pages.append("\n\n".join(cur))
+            cur = [p_str]
+            cur_len = len(p_str)
+        else:
+            cur.append(p_str)
+            cur_len += len(p_str) + 2
+    if cur:
+        pages.append("\n\n".join(cur))
+    return pages
+
 def call_telegram_api(method, payload, timeout=8):
     if not BOT_TOKEN or "MASUKKAN" in BOT_TOKEN:
         return None
@@ -182,21 +205,20 @@ def get_main_menu_keyboard():
     return {
         "inline_keyboard": [
             [
-                {"text": "🎨 Epigraf & Kulit Buku", "callback_data": "ch_0"},
-                {"text": "🖼️ Ilustrasi Kulit (Depan/Belakang)", "callback_data": "view_cover_front"}
+                {"text": "🎨 Epigraf & Kulit", "callback_data": "ch_0"},
+                {"text": "🖼️ Ilustrasi HD", "callback_data": "view_cover_front"}
             ],
             [
-                {"text": "📌 Mukadimah: 9 Faktor Perubahan", "callback_data": "ch_1"},
-                {"text": "📖 Baca Ikut Bab (6 Bab Lengkap)", "callback_data": "menu_chapters"}
+                {"text": "📖 Baca Ikut Bab", "callback_data": "menu_chapters"},
+                {"text": "📝 Ringkasan Eksekutif", "callback_data": "menu_summaries"}
             ],
             [
-                {"text": "🔍 Carian Kata Kunci", "callback_data": "menu_search_info"}
+                {"text": "📌 Mukadimah: 9 Faktor", "callback_data": "ch_1"},
+                {"text": "🌍 Ummah Fadhilah (PBI)", "callback_data": "menu_peradaban"}
             ],
             [
-                {"text": f"💎 {TOTAL_QUOTES} Mutiara Fiqh Siyasah", "callback_data": "hikmah_random"}
-            ],
-            [
-                {"text": "🌍 Ummah Fadhilah & Kuasa Nasional", "callback_data": "menu_peradaban"}
+                {"text": f"💎 {TOTAL_QUOTES} Mutiara Kata", "callback_data": "hikmah_random"},
+                {"text": "🔍 Carian Pintar", "callback_data": "menu_search_info"}
             ],
             [
                 {"text": "🧭 Buka Web PWA Tanẓīr al-Taghyīr 🌐", "url": PWA_PRIMARY_URL}
@@ -233,6 +255,7 @@ def handle_help(chat_id, message_id=None):
         "<b>📌 Arahan Pintas:</b>\n"
         "• <code>/start</code> atau <code>/menu</code> — Paparkan Menu Utama\n"
         "• <code>/bab</code> — Senarai 6 Bab Utama &amp; Bahagian Khas\n"
+        "• <code>/ringkasan</code> — Mod Ringkasan Eksekutif &amp; Intisari Bab\n"
         "• <code>/hikmah</code> — Paparan Mutiara Hikmah Fiqh Siyasah secara rawak\n"
         "• <code>/peradaban</code> — Ringkasan Doktrin Ummah Fadhilah &amp; Kuasa Nasional\n"
         "• <code>/cari &lt;kata kunci&gt;</code> — Cari topik atau mutiara hikmah\n"
@@ -309,7 +332,10 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
     kb.extend([
         [
             {"text": f"📑 Senarai {len(ch.get('subtopics', []))} Subtajuk", "callback_data": f"ch_subs_{ch_idx}_0"},
-            {"text": "📖 Baca Dari Awal", "callback_data": f"read_full_{ch_idx}_0"}
+            {"text": "📝 Ringkasan Bab", "callback_data": f"ch_sum_{ch_idx}_0"}
+        ],
+        [
+            {"text": "📖 Baca Teks Penuh Dari Awal", "callback_data": f"read_full_{ch_idx}_0"}
         ],
         [
             {"text": "« Kembali ke Senarai Bab", "callback_data": "menu_chapters"},
@@ -351,6 +377,139 @@ def handle_cover_view(chat_id, cover_type="front"):
             [{"text": "🏠 Menu Utama", "callback_data": "menu_main"}]
         ]
         send_photo(chat_id, IMG_BACK_COVER, caption, {"inline_keyboard": kb})
+
+
+def handle_summaries_menu(chat_id, message_id):
+    keyboard = [
+        [
+            {"text": "📌 Ringkasan Mukadimah (9 Faktor)", "callback_data": "ch_sum_1_0"},
+            {"text": "Bab 1: Logik Fiqh Perubahan", "callback_data": "ch_sum_2_0"}
+        ],
+        [
+            {"text": "Bab 2: Pemuda Penekan", "callback_data": "ch_sum_3_0"},
+            {"text": "Bab 3: Syarat Empirikal", "callback_data": "ch_sum_4_0"}
+        ],
+        [
+            {"text": "Bab 4: Pergerakan Hidup", "callback_data": "ch_sum_5_0"},
+            {"text": "Bab 5: Mukjizat Pemuda", "callback_data": "ch_sum_6_0"}
+        ],
+        [
+            {"text": "Bab 6: Rumusan Teori", "callback_data": "ch_sum_7_0"},
+            {"text": "Khatimah (Wasiat Penutup)", "callback_data": "ch_sum_8_0"}
+        ],
+        [
+            {"text": "⚖️ Epilog Penterjemah", "callback_data": "ch_sum_9_0"},
+            {"text": "🌍 Sumbangan Peradaban (PBI)", "callback_data": "ch_sum_10_0"}
+        ],
+        [
+            {"text": "« Kembali ke Menu Utama", "callback_data": "menu_main"}
+        ]
+    ]
+    text = (
+        "<b>📝 MOD RINGKASAN EKSEKUTIF TANẒĪR AL-TAGHYĪR</b>\n\n"
+        "Mod ini menyediakan intisari ilmiah padat bagi setiap bab naskhah:\n"
+        "• Peta minda &amp; navigasi pemikiran haraki\n"
+        "• 5 Doktrin Siasah &amp; Rumusan Fiqh Sunnatullah\n"
+        "• Unjuran realiti lapangan pasca-2011 menuju model 2026\n\n"
+        "Sila pilih bahagian yang ingin anda baca ringkasannya:"
+    )
+    if message_id:
+        edit_or_send(chat_id, message_id, text, {"inline_keyboard": keyboard})
+    else:
+        send_msg(chat_id, text, {"inline_keyboard": keyboard})
+
+def handle_chapter_summary_view(chat_id, message_id, ch_idx, page=0):
+    if ch_idx < 0 or ch_idx >= len(CHAPTERS):
+        handle_summaries_menu(chat_id, message_id)
+        return
+    ch = CHAPTERS[ch_idx]
+    raw_sum = ch.get("summary", "")
+    if not raw_sum and "summary" in RAW_DATA:
+        # Fallback to RAW_DATA summary
+        root_map = {0: "EPILOG / EPIGRAF", 1: "MUKADIMAH", 2: "BAB 1", 3: "BAB 2", 4: "BAB 3", 5: "BAB 4", 6: "BAB 5", 7: "BAB 6", 8: "KHATIMAH", 9: "EPILOG PENTERJEMAH", 10: "SUMBANGAN PERADABAN"}
+        raw_sum = RAW_DATA["summary"].get(root_map.get(ch_idx, ""), "")
+    
+    pages = split_summary_pages(raw_sum)
+    if not pages:
+        pages = ["Tiada ringkasan khusus bagi bahagian ini."]
+    
+    total_pages = len(pages)
+    page = max(0, min(page, total_pages - 1))
+    cur_text = pages[page]
+    
+    # Format markdown headers
+    clean_text = re.sub(r'^#+\s*(.*?)$', r'<b></b>', cur_text, flags=re.MULTILINE)
+    clean_text = re.sub(r'[*_`]', '', clean_text)
+    
+    text = (
+        f"<b>📝 RINGKASAN EKSEKUTIF: {tg_escape(ch['number'])}</b> (Hlm {page+1}/{total_pages})\n"
+        f"<i>{tg_escape(ch['title'])}</i>\n\n"
+        f"{tg_escape(cur_text)}"
+    )
+    
+    nav_row = []
+    if page > 0:
+        nav_row.append({"text": "⬅️ Muka Surat Lalu", "callback_data": f"ch_sum_{ch_idx}_{page-1}"})
+    if page < total_pages - 1:
+        nav_row.append({"text": "Muka Surat Seterusnya ➡️", "callback_data": f"ch_sum_{ch_idx}_{page+1}"})
+    
+    kb = []
+    if nav_row:
+        kb.append(nav_row)
+    
+    kb.append([
+        {"text": f"📖 Baca Terjemahan Penuh {ch['number']}", "callback_data": f"ch_subs_{ch_idx}_0"}
+    ])
+    kb.append([
+        {"text": "« Senarai Ringkasan Bab", "callback_data": "menu_summaries"},
+        {"text": "🏠 Menu Utama", "callback_data": "menu_main"}
+    ])
+    edit_or_send(chat_id, message_id, text, {"inline_keyboard": kb})
+
+def handle_subtopic_summary_view(chat_id, message_id, ch_idx, sub_idx):
+    ch = CHAPTERS[ch_idx]
+    subs = ch.get("subtopics", [])
+    if sub_idx < 0 or sub_idx >= len(subs):
+        handle_subtopics_list(chat_id, message_id, ch_idx, 0)
+        return
+    st = subs[sub_idx]
+    
+    raw_title = re.sub(r'^#+\s*', '', st.get('title', ''))
+    raw_title = re.sub(r'[*_`]', '', raw_title)
+    
+    sum_text = st.get("summary", "")
+    if not sum_text:
+        sum_text = "Tiada ringkasan khusus untuk subtajuk ini. Sila baca terjemahan penuh di bawah."
+    else:
+        # Bersihkan pengepala markdown
+        sum_text = re.sub(r'^#+\s*', '', sum_text)
+    
+    text = (
+        f"<b>📝 INTISARI HARAKI (RINGKASAN SUBTAJUK)</b>\n"
+        f"<b>📌 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>\n\n"
+        f"{tg_escape(sum_text)}"
+    )
+    
+    prev_sub = max(0, sub_idx - 1)
+    next_sub = min(len(subs) - 1, sub_idx + 1)
+    nav_buttons = []
+    if sub_idx > 0:
+        nav_buttons.append({"text": "« Subtajuk Lalu", "callback_data": f"sub_sum_{ch_idx}_{prev_sub}"})
+    if sub_idx < len(subs) - 1:
+        nav_buttons.append({"text": "Subtajuk Seterusnya »", "callback_data": f"sub_sum_{ch_idx}_{next_sub}"})
+    
+    kb = []
+    if nav_buttons:
+        kb.append(nav_buttons)
+    
+    kb.append([
+        {"text": "📖 Baca Terjemahan Teks Penuh", "callback_data": f"view_sub_{ch_idx}_{sub_idx}"}
+    ])
+    kb.append([
+        {"text": f"📑 Senarai Topik {ch['number']}", "callback_data": f"ch_subs_{ch_idx}_{sub_idx//6}"},
+        {"text": "🏠 Menu Utama", "callback_data": "menu_main"}
+    ])
+    edit_or_send(chat_id, message_id, text, {"inline_keyboard": kb})
 
 def handle_subtopics_list(chat_id, message_id, ch_idx, page=0):
     ch = CHAPTERS[ch_idx]
@@ -443,6 +602,11 @@ def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
     kb = []
     if nav_buttons:
         kb.append(nav_buttons)
+    
+    if st.get("summary"):
+        kb.append([
+            {"text": "📝 Baca Intisari Haraki (Ringkasan)", "callback_data": f"sub_sum_{ch_idx}_{sub_idx}"}
+        ])
     
     kb.append([
         {"text": f"📑 Senarai Topik {ch['number']}", "callback_data": f"ch_subs_{ch_idx}_{sub_idx//6}"},
@@ -642,6 +806,8 @@ def main_polling():
                                 handle_help(chat_id)
                             elif cmd in ["/bab", "/chapters", "/senarai"]:
                                 handle_chapters_menu(chat_id, None)
+                            elif cmd in ["/ringkasan", "/summary", "/intisari"]:
+                                handle_summaries_menu(chat_id, None)
                             elif cmd in ["/hikmah", "/quote", "/mutiara"]:
                                 handle_hikmah(chat_id, None)
                             elif cmd in ["/peradaban", "/sumbangan"]:
@@ -667,6 +833,14 @@ def main_polling():
                         
                         if data == "menu_main":
                             handle_start(chat_id, msg_id)
+                        elif data == "menu_summaries":
+                            handle_summaries_menu(chat_id, msg_id)
+                        elif data.startswith("ch_sum_"):
+                            parts = data.split("_")
+                            handle_chapter_summary_view(chat_id, msg_id, int(parts[2]), int(parts[3]))
+                        elif data.startswith("sub_sum_"):
+                            parts = data.split("_")
+                            handle_subtopic_summary_view(chat_id, msg_id, int(parts[2]), int(parts[3]))
                         elif data == "view_cover_front":
                             handle_cover_view(chat_id, "front")
                         elif data == "view_cover_back":
