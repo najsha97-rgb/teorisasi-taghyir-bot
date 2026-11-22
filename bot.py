@@ -53,16 +53,20 @@ CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 DATA_PATH = os.path.join(BASE_DIR, "tanzir_data.json")
 QUOTES_PATH = os.path.join(BASE_DIR, "tanzir_quotes.json")
 
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_TANZIR", "")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_TANZIR", "").strip()
 
-if os.path.exists(CONFIG_PATH):
+if not BOT_TOKEN and os.path.exists(CONFIG_PATH):
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8-sig") as f:
             cfg = json.load(f)
-            if not BOT_TOKEN and cfg.get("bot_token"):
+            if cfg.get("bot_token"):
                 BOT_TOKEN = cfg.get("bot_token").strip()
     except Exception as e:
-        print(f"Ralat membaca config.json: {e}")
+        print(f"Ralat membaca config.json: {e}", flush=True)
+
+# Token Sandaran Rasmi Tanẓīr al-Taghyīr
+if not BOT_TOKEN or "MASUKKAN" in BOT_TOKEN:
+    BOT_TOKEN = "9276024407:AAGk2pu0mae6kGOK24J-loMznOP_gQRjVv4"
 
 if not os.path.exists(DATA_PATH):
     print(f"Ralat kritikal: Fail data {DATA_PATH} tidak wujud!")
