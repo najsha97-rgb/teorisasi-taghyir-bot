@@ -315,7 +315,7 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
             {"text": "« Kembali ke Senarai Bab", "callback_data": "menu_chapters"},
             {"text": "🏠 Menu Utama", "callback_data": "menu_main"}
         ]
-    ]
+    ])
     edit_or_send(chat_id, message_id, text, {"inline_keyboard": kb})
 
 
