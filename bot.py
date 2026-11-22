@@ -84,6 +84,8 @@ TOTAL_SUBTOPICS = sum(len(c.get("subtopics", [])) for c in CHAPTERS)
 TOTAL_QUOTES = len(HIKMAH_DATA) if HIKMAH_DATA else 120
 PWA_PRIMARY_URL = "https://najsha97-rgb.github.io/teorisasi-taghyir/"
 PWA_BACKUP_URL = "https://teorisasi-taghyir.pages.dev/"
+IMG_FRONT_COVER = "https://najsha97-rgb.github.io/teorisasi-taghyir/images/cover_revitalized_vibrant_tanzir.jpg"
+IMG_BACK_COVER = "https://najsha97-rgb.github.io/teorisasi-taghyir/images/kulit_belakang_tanzir.jpg"
 
 print(f"Berjaya memuatkan {len(CHAPTERS)} Bahagian ({TOTAL_SUBTOPICS} Topik) & {TOTAL_QUOTES} Mutiara Kata Tanẓīr al-Taghyīr.")
 
@@ -165,15 +167,29 @@ def send_msg(chat_id, text, reply_markup=None):
         payload["reply_markup"] = reply_markup
     return call_telegram_api("sendMessage", payload)
 
+def send_photo(chat_id, photo_url, caption="", reply_markup=None):
+    payload = {
+        "chat_id": chat_id,
+        "photo": photo_url,
+        "caption": to_tg_html(caption),
+        "parse_mode": "HTML"
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    return call_telegram_api("sendPhoto", payload, timeout=12)
+
 def get_main_menu_keyboard():
     return {
         "inline_keyboard": [
             [
                 {"text": "🎨 Epigraf & Kulit Buku", "callback_data": "ch_0"},
-                {"text": "📌 Mukadimah: 9 Faktor Perubahan", "callback_data": "ch_1"}
+                {"text": "🖼️ Ilustrasi Kulit (Depan/Belakang)", "callback_data": "view_cover_front"}
             ],
             [
-                {"text": "📖 Baca Ikut Bab (6 Bab Lengkap)", "callback_data": "menu_chapters"},
+                {"text": "📌 Mukadimah: 9 Faktor Perubahan", "callback_data": "ch_1"},
+                {"text": "📖 Baca Ikut Bab (6 Bab Lengkap)", "callback_data": "menu_chapters"}
+            ],
+            [
                 {"text": "🔍 Carian Kata Kunci", "callback_data": "menu_search_info"}
             ],
             [
@@ -284,7 +300,13 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
         f"{summary_preview}"
     )
     
-    kb = [
+    kb = []
+    if ch_idx == 0:
+        kb.append([
+            {"text": "🎨 Lihat Kulit Depan", "callback_data": "view_cover_front"},
+            {"text": "📜 Lihat Kulit Belakang", "callback_data": "view_cover_back"}
+        ])
+    kb.extend([
         [
             {"text": f"📑 Senarai {len(ch.get('subtopics', []))} Subtajuk", "callback_data": f"ch_subs_{ch_idx}_0"},
             {"text": "📖 Baca Dari Awal", "callback_data": f"read_full_{ch_idx}_0"}
@@ -295,6 +317,40 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
         ]
     ]
     edit_or_send(chat_id, message_id, text, {"inline_keyboard": kb})
+
+
+def handle_cover_view(chat_id, cover_type="front"):
+    if cover_type == "front":
+        caption = (
+            "<b>🎨 ILUSTRASI KULIT HADAPAN TANẒĪR AL-TAGHYĪR</b>\n"
+            "<i>(Naskhah Kanonikal Edisi Bahasa Melayu Terselaras)</i>\n\n"
+            "Lukisan kanvas abstrak karya <b>Asy-Syeikh Muhammad Ahmad ar-Rasyid</b> <i>rahimahullah</i>:\n\n"
+            "• <b>Al-Qā' al-Dākin (Kegelapan Rejim):</b> Menolak kepasifan di bawah tirani.\n"
+            "• <b>Bahjat al-Ghad al-Akhḍar (Fajar Hijau):</b> Matlamat akhir kemerdekaan umat dan daulah adil.\n"
+            "• <b>Al-Thaman al-Aḥmar (Darah Pengorbanan):</b> Harga kebebasan yang ditebus di jalan Allah.\n"
+            "• <b>Al-Farāsyāt al-Silmiyyah (Rama-rama Damai):</b> Gelombang pemuda berarak tanpa senjata menumbangkan thaghut."
+        )
+        kb = [
+            [{"text": "📜 Lihat Kulit Belakang (Blurb)", "callback_data": "view_cover_back"}],
+            [{"text": "📖 Baca Falsafah Epigraf Lengkap", "callback_data": "ch_0"}],
+            [{"text": "🏠 Menu Utama", "callback_data": "menu_main"}]
+        ]
+        send_photo(chat_id, IMG_FRONT_COVER, caption, {"inline_keyboard": kb})
+    else:
+        caption = (
+            "<b>📜 ILUSTRASI KULIT BELAKANG TANẒĪR AL-TAGHYĪR</b>\n"
+            "<i>(Blurb, Falsafah Ketamadunan & Wasiat Haraki)</i>\n\n"
+            "Memuatkan wasiat pemikiran strategik Syeikh Muhammad Ahmad ar-Rasyid:\n\n"
+            "<i>“Kemenangan politik bukanlah sekadar kejayaan meruntuhkan takhta kezaliman di jalanan, "
+            "sebaliknya bermula apabila angkatan dakwah berupaya membina Super Inteligensi, "
+            "menyatukan kepakaran teknokrat melalui Hilf al-'Uqul, dan menegakkan Peradaban Baru Islam (PBI).”</i>"
+        )
+        kb = [
+            [{"text": "🎨 Lihat Kulit Hadapan", "callback_data": "view_cover_front"}],
+            [{"text": "📖 Baca Falsafah Epigraf Lengkap", "callback_data": "ch_0"}],
+            [{"text": "🏠 Menu Utama", "callback_data": "menu_main"}]
+        ]
+        send_photo(chat_id, IMG_BACK_COVER, caption, {"inline_keyboard": kb})
 
 def handle_subtopics_list(chat_id, message_id, ch_idx, page=0):
     ch = CHAPTERS[ch_idx]
@@ -580,6 +636,8 @@ def main_polling():
                             
                             if cmd in ["/start", "/mula", "/menu"]:
                                 handle_start(chat_id)
+                            elif cmd in ["/kulit", "/cover", "/gambar"]:
+                                handle_cover_view(chat_id, "front")
                             elif cmd in ["/help", "/bantuan"]:
                                 handle_help(chat_id)
                             elif cmd in ["/bab", "/chapters", "/senarai"]:
@@ -609,6 +667,10 @@ def main_polling():
                         
                         if data == "menu_main":
                             handle_start(chat_id, msg_id)
+                        elif data == "view_cover_front":
+                            handle_cover_view(chat_id, "front")
+                        elif data == "view_cover_back":
+                            handle_cover_view(chat_id, "back")
                         elif data == "menu_chapters":
                             handle_chapters_menu(chat_id, msg_id)
                         elif data == "menu_peradaban":
