@@ -89,10 +89,25 @@ print(f"Berjaya memuatkan {len(CHAPTERS)} Bahagian ({TOTAL_SUBTOPICS} Topik) & {
 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+def tg_escape(text):
+    """
+    Escape khusus untuk mod HTML Telegram.
+    Hanya aksara &, <, > sahaja die-escape kepada &amp;, &lt;, &gt;.
+    Aksara tanda petik ' dan " TIDAK die-escape (quote=False) kerana Telegram
+    memaparkan &#x27; secara mentah pada mesej.
+    """
+    if text is None:
+        return ""
+    s = str(text)
+    s = s.replace(r"\'", "'").replace(r'\"', '"')
+    return html.escape(s, quote=False)
+
 def to_tg_html(text):
-    """Pastikan simbol ampersand (&) yang tidak berformat die-escape kepada &amp; untuk Telegram."""
+    """Pastikan simbol ampersand (&) yang tidak berformat die-escape kepada &amp; untuk Telegram, serta pulihkan &#x27; kepada tanda petik biasa."""
     if not text:
         return ""
+    text = text.replace(r"\'", "'").replace(r'\"', '"')
+    text = text.replace("&#x27;", "'").replace("&apos;", "'")
     return re.sub(r'&(?!(?:amp|lt|gt|quot|apos|#\d+);)', '&amp;', text)
 
 def call_telegram_api(method, payload):
@@ -246,16 +261,16 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
         return
     ch = CHAPTERS[ch_idx]
     
-    title_ar_str = f"\n<i>{html.escape(ch.get('title_ar', ''))}</i>" if ch.get('title_ar') else ""
+    title_ar_str = f"\n<i>{tg_escape(ch.get('title_ar', ''))}</i>" if ch.get('title_ar') else ""
     summary_preview = ""
     if ch.get("summary"):
         clean_sum = re.sub(r'#+\s*', '', ch["summary"])
         clean_sum = re.sub(r'\*+', '', clean_sum)
         clean_sum = re.sub(r'<[^>]+>', '', clean_sum)
-        summary_preview = f"\n\n<b>📝 Intisari Bab:</b>\n{html.escape(clean_sum[:450])}..."
+        summary_preview = f"\n\n<b>📝 Intisari Bab:</b>\n{tg_escape(clean_sum[:450])}..."
     
     text = (
-        f"<b>📌 {html.escape(ch['number'])}: {html.escape(ch['title'])}</b>{title_ar_str}\n\n"
+        f"<b>📌 {tg_escape(ch['number'])}: {tg_escape(ch['title'])}</b>{title_ar_str}\n\n"
         f"• <b>Jumlah Subtajuk:</b> {ch.get('total_subtopics', len(ch.get('subtopics', [])))} Topik\n"
         f"• <b>Jumlah Perenggan:</b> {ch.get('total_paragraphs', 0)} Perenggan\n"
         f"• <b>Nota Kaki:</b> {len(ch.get('footnotes', []))} Rujukan"
@@ -284,7 +299,7 @@ def handle_subtopics_list(chat_id, message_id, ch_idx, page=0):
     end = min(start + per_page, len(subs))
     
     text = (
-        f"<b>📑 SUBTAJUK {html.escape(ch['number'])}</b> (Halaman {page+1}/{total_pages})\n\n"
+        f"<b>📑 SUBTAJUK {tg_escape(ch['number'])}</b> (Halaman {page+1}/{total_pages})\n\n"
         f"Pilih tajuk untuk membaca terjemahan ilmiah:"
     )
     
@@ -339,18 +354,18 @@ def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
                 txt = fn.get("text", "")
                 txt_clean = re.sub(r'<[^>]+>', '', txt)
                 fn_id = fn.get("id", "")
-                fn_items.append(f"[{fn_id}] {html.escape(txt_clean)}")
+                fn_items.append(f"[{fn_id}] {tg_escape(txt_clean)}")
             else:
                 txt_clean = re.sub(r'<[^>]+>', '', str(fn))
-                fn_items.append(html.escape(txt_clean))
+                fn_items.append(tg_escape(txt_clean))
         fn_text = "\n\n<b>📌 Nota Kaki:</b>\n" + "\n".join(fn_items)
     
     raw_title = re.sub(r'^#+\s*', '', st.get('title', ''))
     raw_title = re.sub(r'[*_`]', '', raw_title)
     
     text = (
-        f"<b>📌 {html.escape(ch['number'])}: {html.escape(raw_title)}</b>\n\n"
-        f"{html.escape(para_text)}"
+        f"<b>📌 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>\n\n"
+        f"{tg_escape(para_text)}"
         f"{fn_text}"
     )
     
@@ -386,13 +401,13 @@ def handle_hikmah(chat_id, message_id, q_id=None):
     prev_id = cur_id - 1 if cur_id > 1 else len(HIKMAH_DATA)
     next_id = cur_id + 1 if cur_id < len(HIKMAH_DATA) else 1
     
-    arabic_part = f"<b>«{html.escape(q.get('arabic', ''))}»</b>\n\n" if q.get("arabic") else ""
-    trans_part = f"<i>“{html.escape(q.get('translation', ''))}”</i>\n\n" if q.get("translation") else ""
-    dimensi_part = f"<b>⚔️ Fiqh Siyasah &amp; Pengajaran:</b>\n{html.escape(q.get('dimensi', ''))}\n\n" if q.get("dimensi") else ""
+    arabic_part = f"<b>«{tg_escape(q.get('arabic', ''))}»</b>\n\n" if q.get("arabic") else ""
+    trans_part = f"<i>“{tg_escape(q.get('translation', ''))}”</i>\n\n" if q.get("translation") else ""
+    dimensi_part = f"<b>⚔️ Fiqh Siyasah &amp; Pengajaran:</b>\n{tg_escape(q.get('dimensi', ''))}\n\n" if q.get("dimensi") else ""
     
     text = (
         f"<b>💎 MUTIARA HIKMAH FIQH SIYASAH #{cur_id} / {len(HIKMAH_DATA)}</b>\n"
-        f"<b>Tokoh / Sumber:</b> {html.escape(q.get('speaker', 'Syeikh al-Rasyid'))}\n\n"
+        f"<b>Tokoh / Sumber:</b> {tg_escape(q.get('speaker', 'Syeikh al-Rasyid'))}\n\n"
         f"{arabic_part}"
         f"{trans_part}"
         f"{dimensi_part}"
@@ -501,7 +516,7 @@ def perform_search(chat_id, query):
                 break
     
     if not results:
-        text = f"<b>🔍 Hasil Carian:</b> <i>\"{html.escape(query)}\"</i>\n\nMaaf, tiada padanan dijumpai. Sila cuba kata kunci lain."
+        text = f"<b>🔍 Hasil Carian:</b> <i>\"{tg_escape(query)}\"</i>\n\nMaaf, tiada padanan dijumpai. Sila cuba kata kunci lain."
         kb = [
             [{"text": "🔍 Cuba Carian Lain", "callback_data": "menu_search_info"}],
             [{"text": "🏠 Menu Utama", "callback_data": "menu_main"}]
@@ -509,7 +524,7 @@ def perform_search(chat_id, query):
         send_msg(chat_id, text, {"inline_keyboard": kb})
         return
 
-    text = f"<b>🔍 Hasil Carian untuk:</b> <i>\"{html.escape(query)}\"</i>\nDijumpai {len(results)} padanan terpilih:\n\n"
+    text = f"<b>🔍 Hasil Carian untuk:</b> <i>\"{tg_escape(query)}\"</i>\nDijumpai {len(results)} padanan terpilih:\n\n"
     kb = []
     for idx, r in enumerate(results):
         t_short = r["title"]
