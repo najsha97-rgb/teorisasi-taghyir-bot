@@ -82,8 +82,8 @@ elif "quotes" in RAW_DATA:
 
 TOTAL_SUBTOPICS = sum(len(c.get("subtopics", [])) for c in CHAPTERS)
 TOTAL_QUOTES = len(HIKMAH_DATA) if HIKMAH_DATA else 120
-PWA_PRIMARY_URL = "https://najsha97-rgb.github.io/teorisasi-taghyir/"
-PWA_BACKUP_URL = "https://teorisasi-taghyir.pages.dev/"
+PWA_PRIMARY_URL = "https://teorisasi-taghyir.pages.dev/"
+PWA_BACKUP_URL = "https://najsha97-rgb.github.io/teorisasi-taghyir/"
 IMG_FRONT_COVER = "https://najsha97-rgb.github.io/teorisasi-taghyir/images/cover_revitalized_vibrant_tanzir.jpg"
 IMG_BACK_COVER = "https://najsha97-rgb.github.io/teorisasi-taghyir/images/kulit_belakang_tanzir.jpg"
 

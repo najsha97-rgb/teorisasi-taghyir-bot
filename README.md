@@ -28,8 +28,8 @@ Bot Telegram pintar rasmi bagi karya hebat Asy-Syeikh Muhammad Ahmad ar-Rasyid (
 
 5. **Penyepaduan Web PWA Rasmi:**
    - Akses terus ke Web PWA Tanẓīr al-Taghyīr:
-     - 🌐 **Web PWA Rasmi (GitHub Pages):** [najsha97-rgb.github.io/teorisasi-taghyir](https://najsha97-rgb.github.io/teorisasi-taghyir/)
-     - 🌐 **Cloudflare Pages:** [teorisasi-taghyir.pages.dev](https://teorisasi-taghyir.pages.dev/)
+     - 🌐 **Cloudflare Pages (Pantas & CDN Rasmi):** [teorisasi-taghyir.pages.dev](https://teorisasi-taghyir.pages.dev/)
+     - 🌐 **GitHub Pages (Sandaran / Backup):** [najsha97-rgb.github.io/teorisasi-taghyir](https://najsha97-rgb.github.io/teorisasi-taghyir/)
 
 ---
 
