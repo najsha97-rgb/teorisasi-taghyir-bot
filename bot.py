@@ -525,11 +525,11 @@ def perform_search(chat_id, query):
 
 def main_polling():
     if not BOT_TOKEN or "MASUKKAN" in BOT_TOKEN:
-        print("PERINGATAN: TELEGRAM_BOT_TOKEN_TANZIR belum ditetapkan dalam environment atau config.json.")
-        print("Sila masukkan token rasmi ke dalam config.json untuk mengaktifkan bot secara langsung.")
+        print("PERINGATAN: TELEGRAM_BOT_TOKEN_TANZIR belum ditetapkan dalam environment atau config.json.", flush=True)
+        print("Sila masukkan token rasmi ke dalam config.json untuk mengaktifkan bot secara langsung.", flush=True)
         return
 
-    print("Bot Tanẓīr al-Taghyīr bersedia dan memulakan polling...")
+    print("Bot Tanẓīr al-Taghyīr bersedia dan memulakan polling...", flush=True)
     offset = None
     while True:
         try:
@@ -549,6 +549,8 @@ def main_polling():
                         
                         if not text:
                             continue
+                        
+                        print(f"[Mesej] Dari {chat_id}: {text}", flush=True)
                             
                         if text.startswith("/"):
                             cmd = text.split()[0].lower()
@@ -580,6 +582,7 @@ def main_polling():
                         msg_id = cb["message"]["message_id"]
                         data = cb.get("data", "")
                         
+                        print(f"[Callback] Dari {chat_id}: {data}", flush=True)
                         call_telegram_api("answerCallbackQuery", {"callback_query_id": cb["id"]})
                         
                         if data == "menu_main":
