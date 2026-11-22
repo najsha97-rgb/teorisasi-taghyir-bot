@@ -4,7 +4,7 @@ BOT TELEGRAM TANẒĪR AL-TAGHYĪR (تنظير التغيير)
 Membina Teori Integrasi Perubahan Politik Islam
 Karya: Asy-Syeikh Muhammad Ahmad ar-Rasyid (رحمه الله)
 Siri Rujukan Gerakan & Fiqh Siyasah Perubahan
-Versi: 1.1 (208 Topik Kanonikal, 120 Mutiara Kata, 131 Nota Kaki & Carian Pintar)
+Versi: 1.2 (Pembersihan Format Intensif: HTML Rasmi Telegram, Blockquote, Tanpa Simbol Mentah)
 """
 
 import os
@@ -107,14 +107,188 @@ def tg_escape(text):
     s = s.replace(r"\&#x27;", "'").replace("&#x27;", "'").replace("&apos;", "'")
     return html.escape(s, quote=False)
 
+def clean_raw_text(text):
+    """Membersihkan mojibake tanda petik dan tag HTML web yang tidak disokong oleh Telegram."""
+    if not text:
+        return ""
+    s = str(text)
+    s = s.replace(r"\&#x27;", "'").replace("&#x27;", "'").replace("&apos;", "'")
+    s = s.replace(r"\'", "'").replace(r'\"', '"')
+    # Tukar rujukan nota kaki web <span class="fn-ref">...</span> -> [1]
+    s = re.sub(r'<span[^>]*class=["\']fn-ref["\'][^>]*>\[?(.*?)\]?</span>', r'[\1]', s)
+    # Tukar tajuk HTML web jika ada kepada heading markdown
+    s = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'\n### \1\n', s, flags=re.IGNORECASE)
+    # Tukar tag gaya web kepada markdown
+    s = re.sub(r'<(?:\/)?(?:strong|b)(?:\s+[^>]*)?>', '**', s, flags=re.IGNORECASE)
+    s = re.sub(r'<(?:\/)?(?:em|i)(?:\s+[^>]*)?>', '*', s, flags=re.IGNORECASE)
+    # Buang tag HTML web luar (div, span, p dsb)
+    s = re.sub(r'</?(?:div|span|p|section|header|article|table|tr|td|th|tbody)[^>]*>', '\n', s, flags=re.IGNORECASE)
+    s = re.sub(r'\n{3,}', '\n\n', s)
+    return s.strip()
+
+def format_inline_markdown(s):
+    """Menukar sintaks bold & italic Markdown kepada tag HTML Telegram yang sah."""
+    if not s:
+        return ""
+    # Bold-italic gabungan di hujung: **text *italic**** -> <b>text <i>italic</i></b>
+    s = re.sub(r'\*\*([^\*\n]+?)\*([^\*\n]+?)\*\*\*', r'<b>\1<i>\2</i></b>', s)
+    # Bold-italic gabungan di awal: ***italic* text** -> <b><i>\1</i>\2</b>
+    s = re.sub(r'\*\*\*([^\*\n]+?)\*([^\*\n]+?)\*\*', r'<b><i>\1</i>\2</b>', s)
+    # Triple asterisks: ***text*** -> <b><i>text</i></b>
+    s = re.sub(r'\*\*\*(.+?)\*\*\*', r'<b><i>\1</i></b>', s)
+    # Double asterisks: **text** -> <b>text</b>
+    s = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', s)
+    # Single asterisk italic: *text*
+    s = re.sub(r'(?<!\*)\*([^\*\n]+?)\*(?!\*)', r'<i>\1</i>', s)
+    # Buang baki tanda asterisk yang tidak berpasangan
+    s = s.replace("*", "")
+    return s
+
+def balance_telegram_tags(s):
+    """Memastikan semua tag HTML Telegram bersarang sempurna tanpa unclosed/mismatched tag."""
+    valid_tags = {'b', 'i', 'u', 's', 'code', 'pre', 'blockquote', 'a'}
+    tag_pattern = re.compile(r'(</?([a-z]+)(?:\s+[^>]*)?>)', re.IGNORECASE)
+    
+    stack = []
+    output = []
+    last_idx = 0
+    
+    for m in tag_pattern.finditer(s):
+        full_tag = m.group(1)
+        tag_name = m.group(2).lower()
+        is_closing = full_tag.startswith('</')
+        
+        output.append(s[last_idx:m.start()])
+        last_idx = m.end()
+        
+        if tag_name not in valid_tags:
+            output.append(full_tag.replace('<', '&lt;').replace('>', '&gt;'))
+            continue
+            
+        if not is_closing:
+            stack.append(tag_name)
+            output.append(full_tag)
+        else:
+            if not stack:
+                continue
+            if stack[-1] == tag_name:
+                stack.pop()
+                output.append(full_tag)
+            else:
+                if tag_name in stack:
+                    while stack and stack[-1] != tag_name:
+                        top = stack.pop()
+                        output.append(f"</{top}>")
+                    if stack and stack[-1] == tag_name:
+                        stack.pop()
+                        output.append(full_tag)
+                else:
+                    continue
+
+    output.append(s[last_idx:])
+    while stack:
+        top = stack.pop()
+        output.append(f"</{top}>")
+        
+    return "".join(output)
+
+def md_to_telegram_html(text):
+    """
+    Penukar penuh format teks & Markdown Tanẓīr al-Taghyīr kepada Telegram HTML rasmi.
+    - Menukar blockquote (> ayat/puisi/petikan) kepada <blockquote>...</blockquote>
+    - Menukar divider (---) kepada garisan pembahagi kemas ────────────────────
+    - Menukar heading (#, ##, ###) kepada <b>Tajuk</b>
+    - Menukar bullet list (-, *) kepada • Item
+    - Menukar bold/italic (**...**, *...*) kepada <b> dan <i>
+    - Melindungi daripada simbol mentah <, >, &, &#x27;
+    """
+    if not text:
+        return ""
+    
+    text = clean_raw_text(text)
+    lines = text.split("\n")
+    out_lines = []
+    
+    in_quote = False
+    quote_buf = []
+    
+    def flush_quote():
+        nonlocal in_quote, quote_buf, out_lines
+        if in_quote and quote_buf:
+            while quote_buf and not quote_buf[0].strip():
+                quote_buf.pop(0)
+            while quote_buf and not quote_buf[-1].strip():
+                quote_buf.pop()
+            if quote_buf:
+                q_text = "\n".join(quote_buf)
+                q_text = re.sub(r'^\s*["“]+|["”]+\s*$', '', q_text).strip()
+                safe_q = html.escape(q_text, quote=False)
+                safe_q = format_inline_markdown(safe_q)
+                out_lines.append(f"<blockquote>{safe_q}</blockquote>")
+            quote_buf = []
+            in_quote = False
+
+    for line in lines:
+        l_strip = line.strip()
+        
+        # 1. Semak baris blockquote (> atau > )
+        m_quote = re.match(r'^(?:>|&gt;)\s*(.*)$', l_strip)
+        if m_quote:
+            in_quote = True
+            quote_buf.append(m_quote.group(1))
+            continue
+        elif in_quote and not l_strip:
+            quote_buf.append("")
+            continue
+        else:
+            flush_quote()
+            
+        # 2. Pembahagi divider (--- atau *** atau ___)
+        if re.match(r'^(?:-{3,}|\*{3,}|_{3,})$', l_strip):
+            out_lines.append("────────────────────")
+            continue
+            
+        # 3. Heading Markdown (# Tajuk, ## Subtajuk, ### Poin)
+        m_head = re.match(r'^(#{1,6})\s+(.*)$', l_strip)
+        if m_head:
+            head_txt = m_head.group(2).strip()
+            head_txt = re.sub(r'^\(\*(.*?)\*\)$', r'\1', head_txt)
+            head_txt = re.sub(r'[*_`]', '', head_txt).strip()
+            safe_h = html.escape(head_txt, quote=False)
+            out_lines.append(f"<b>{safe_h}</b>")
+            continue
+            
+        # 4. Bullet list (- Item, * Item, • Item)
+        m_bullet = re.match(r'^[-*•]\s+(.*)$', l_strip)
+        if m_bullet:
+            b_txt = m_bullet.group(1).strip()
+            safe_b = html.escape(b_txt, quote=False)
+            safe_b = format_inline_markdown(safe_b)
+            out_lines.append(f"• {safe_b}")
+            continue
+            
+        # 5. Baris teks biasa
+        if not l_strip:
+            out_lines.append("")
+            continue
+            
+        safe_line = html.escape(line, quote=False)
+        safe_line = format_inline_markdown(safe_line)
+        out_lines.append(safe_line)
+        
+    flush_quote()
+    res = "\n".join(out_lines)
+    res = res.replace("&#x27;", "'").replace("&apos;", "'")
+    res = balance_telegram_tags(res)
+    return res
+
 def to_tg_html(text):
-    """Pastikan simbol ampersand (&) yang tidak berformat die-escape kepada &amp; untuk Telegram, serta pulihkan sebarang entiti tanda petik."""
+    """Pastikan simbol ampersand (&) yang tidak berformat die-escape kepada &amp; untuk Telegram."""
     if not text:
         return ""
     text = text.replace(r"\&#x27;", "'").replace(r"&#x27;", "'").replace(r"&apos;", "'")
     text = text.replace(r"\'", "'").replace(r'\"', '"')
     return re.sub(r'&(?!(?:amp|lt|gt|quot|apos|#\d+);)', '&amp;', text)
-
 
 def split_summary_pages(summary_text, max_len=2200):
     if not summary_text:
@@ -210,11 +384,11 @@ def get_main_menu_keyboard():
             ],
             [
                 {"text": "📖 Baca Ikut Bab", "callback_data": "menu_chapters"},
-                {"text": "📝 Ringkasan Eksekutif", "callback_data": "menu_summaries"}
+                {"text": "📌 Ringkasan Eksekutif", "callback_data": "menu_summaries"}
             ],
             [
                 {"text": "📌 Mukadimah: 9 Faktor", "callback_data": "ch_1"},
-                {"text": "🌍 Ummah Fadhilah (PBI)", "callback_data": "menu_peradaban"}
+                {"text": "🌐 Ummah Fadhilah (PBI)", "callback_data": "menu_peradaban"}
             ],
             [
                 {"text": f"💎 {TOTAL_QUOTES} Mutiara Kata", "callback_data": "hikmah_random"},
@@ -310,13 +484,14 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
     title_ar_str = f"\n<i>{tg_escape(ch.get('title_ar', ''))}</i>" if ch.get('title_ar') else ""
     summary_preview = ""
     if ch.get("summary"):
-        clean_sum = re.sub(r'#+\s*', '', ch["summary"])
-        clean_sum = re.sub(r'\*+', '', clean_sum)
-        clean_sum = re.sub(r'<[^>]+>', '', clean_sum)
-        summary_preview = f"\n\n<b>📝 Intisari Bab:</b>\n{tg_escape(clean_sum[:450])}..."
+        clean_sum = clean_raw_text(ch["summary"])
+        clean_sum = re.sub(r'#+\s*', '', clean_sum)
+        clean_sum = re.sub(r'[*_`>]', '', clean_sum)
+        clean_sum = re.sub(r'-{3,}', '', clean_sum).strip()
+        summary_preview = f"\n\n<b>📌 Intisari Bab:</b>\n{tg_escape(clean_sum[:400])}..."
     
     text = (
-        f"<b>📌 {tg_escape(ch['number'])}: {tg_escape(ch['title'])}</b>{title_ar_str}\n\n"
+        f"<b>📖 {tg_escape(ch['number'])}: {tg_escape(ch['title'])}</b>{title_ar_str}\n\n"
         f"• <b>Jumlah Subtajuk:</b> {ch.get('total_subtopics', len(ch.get('subtopics', [])))} Topik\n"
         f"• <b>Jumlah Perenggan:</b> {ch.get('total_paragraphs', 0)} Perenggan\n"
         f"• <b>Nota Kaki:</b> {len(ch.get('footnotes', []))} Rujukan"
@@ -332,7 +507,7 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
     kb.extend([
         [
             {"text": f"📑 Senarai {len(ch.get('subtopics', []))} Subtajuk", "callback_data": f"ch_subs_{ch_idx}_0"},
-            {"text": "📝 Ringkasan Bab", "callback_data": f"ch_sum_{ch_idx}_0"}
+            {"text": "📌 Ringkasan Bab", "callback_data": f"ch_sum_{ch_idx}_0"}
         ],
         [
             {"text": "📖 Baca Teks Penuh Dari Awal", "callback_data": f"read_full_{ch_idx}_0"}
@@ -343,7 +518,6 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
         ]
     ])
     edit_or_send(chat_id, message_id, text, {"inline_keyboard": kb})
-
 
 def handle_cover_view(chat_id, cover_type="front"):
     if cover_type == "front":
@@ -367,9 +541,9 @@ def handle_cover_view(chat_id, cover_type="front"):
             "<b>📜 ILUSTRASI KULIT BELAKANG TANẒĪR AL-TAGHYĪR</b>\n"
             "<i>(Blurb, Falsafah Ketamadunan & Wasiat Haraki)</i>\n\n"
             "Memuatkan wasiat pemikiran strategik Syeikh Muhammad Ahmad ar-Rasyid:\n\n"
-            "<i>“Kemenangan politik bukanlah sekadar kejayaan meruntuhkan takhta kezaliman di jalanan, "
+            "<blockquote>“Kemenangan politik bukanlah sekadar kejayaan meruntuhkan takhta kezaliman di jalanan, "
             "sebaliknya bermula apabila angkatan dakwah berupaya membina Super Inteligensi, "
-            "menyatukan kepakaran teknokrat melalui Hilf al-'Uqul, dan menegakkan Peradaban Baru Islam (PBI).”</i>"
+            "menyatukan kepakaran teknokrat melalui Ḥilf al-'Uqūl, dan menegakkan Peradaban Baru Islam (PBI).”</blockquote>"
         )
         kb = [
             [{"text": "🎨 Lihat Kulit Hadapan", "callback_data": "view_cover_front"}],
@@ -377,7 +551,6 @@ def handle_cover_view(chat_id, cover_type="front"):
             [{"text": "🏠 Menu Utama", "callback_data": "menu_main"}]
         ]
         send_photo(chat_id, IMG_BACK_COVER, caption, {"inline_keyboard": kb})
-
 
 def handle_summaries_menu(chat_id, message_id):
     keyboard = [
@@ -399,14 +572,14 @@ def handle_summaries_menu(chat_id, message_id):
         ],
         [
             {"text": "⚖️ Epilog Penterjemah", "callback_data": "ch_sum_9_0"},
-            {"text": "🌍 Sumbangan Peradaban (PBI)", "callback_data": "ch_sum_10_0"}
+            {"text": "🌐 Sumbangan Peradaban (PBI)", "callback_data": "ch_sum_10_0"}
         ],
         [
             {"text": "« Kembali ke Menu Utama", "callback_data": "menu_main"}
         ]
     ]
     text = (
-        "<b>📝 MOD RINGKASAN EKSEKUTIF TANẒĪR AL-TAGHYĪR</b>\n\n"
+        "<b>📌 MOD RINGKASAN EKSEKUTIF TANẒĪR AL-TAGHYĪR</b>\n\n"
         "Mod ini menyediakan intisari ilmiah padat bagi setiap bab naskhah:\n"
         "• Peta minda &amp; navigasi pemikiran haraki\n"
         "• 5 Doktrin Siasah &amp; Rumusan Fiqh Sunnatullah\n"
@@ -425,7 +598,6 @@ def handle_chapter_summary_view(chat_id, message_id, ch_idx, page=0):
     ch = CHAPTERS[ch_idx]
     raw_sum = ch.get("summary", "")
     if not raw_sum and "summary" in RAW_DATA:
-        # Fallback to RAW_DATA summary
         root_map = {0: "EPILOG / EPIGRAF", 1: "MUKADIMAH", 2: "BAB 1", 3: "BAB 2", 4: "BAB 3", 5: "BAB 4", 6: "BAB 5", 7: "BAB 6", 8: "KHATIMAH", 9: "EPILOG PENTERJEMAH", 10: "SUMBANGAN PERADABAN"}
         raw_sum = RAW_DATA["summary"].get(root_map.get(ch_idx, ""), "")
     
@@ -437,14 +609,12 @@ def handle_chapter_summary_view(chat_id, message_id, ch_idx, page=0):
     page = max(0, min(page, total_pages - 1))
     cur_text = pages[page]
     
-    # Format markdown headers
-    clean_text = re.sub(r'^#+\s*(.*?)$', r'<b></b>', cur_text, flags=re.MULTILINE)
-    clean_text = re.sub(r'[*_`]', '', clean_text)
+    clean_body = md_to_telegram_html(cur_text)
     
     text = (
-        f"<b>📝 RINGKASAN EKSEKUTIF: {tg_escape(ch['number'])}</b> (Hlm {page+1}/{total_pages})\n"
+        f"<b>📌 RINGKASAN EKSEKUTIF: {tg_escape(ch['number'])}</b> (Hlm {page+1}/{total_pages})\n"
         f"<i>{tg_escape(ch['title'])}</i>\n\n"
-        f"{tg_escape(cur_text)}"
+        f"{clean_body}"
     )
     
     nav_row = []
@@ -475,19 +645,18 @@ def handle_subtopic_summary_view(chat_id, message_id, ch_idx, sub_idx):
     st = subs[sub_idx]
     
     raw_title = re.sub(r'^#+\s*', '', st.get('title', ''))
-    raw_title = re.sub(r'[*_`]', '', raw_title)
+    raw_title = re.sub(r'[*_`]', '', raw_title).strip()
     
     sum_text = st.get("summary", "")
     if not sum_text:
         sum_text = "Tiada ringkasan khusus untuk subtajuk ini. Sila baca terjemahan penuh di bawah."
-    else:
-        # Bersihkan pengepala markdown
-        sum_text = re.sub(r'^#+\s*', '', sum_text)
+    
+    clean_body = md_to_telegram_html(sum_text)
     
     text = (
-        f"<b>📝 INTISARI HARAKI (RINGKASAN SUBTAJUK)</b>\n"
-        f"<b>📌 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>\n\n"
-        f"{tg_escape(sum_text)}"
+        f"<b>📌 INTISARI HARAKI (RINGKASAN SUBTAJUK)</b>\n"
+        f"<b>📖 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>\n\n"
+        f"{clean_body}"
     )
     
     prev_sub = max(0, sub_idx - 1)
@@ -530,7 +699,7 @@ def handle_subtopics_list(chat_id, message_id, ch_idx, page=0):
         st = subs[s_i]
         st_title = st.get("title", f"Subtajuk {s_i+1}")
         st_title = re.sub(r'^#+\s*', '', st_title)
-        st_title = re.sub(r'[*_`]', '', st_title)
+        st_title = re.sub(r'[*_`]', '', st_title).strip()
         if len(st_title) > 35:
             st_title = st_title[:32] + "..."
         kb.append([{"text": f"🔹 {st_title}", "callback_data": f"view_sub_{ch_idx}_{s_i}"}])
@@ -558,20 +727,24 @@ def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
     st = subs[sub_idx]
     
     paras = st.get("paragraphs", [])
-    clean_paras = []
-    for p in paras:
-        p_clean = re.sub(r'<span[^>]*class=["\']fn-ref["\'][^>]*>(.*?)</span>', r'\1', p)
-        p_clean = re.sub(r'<[^>]+>', '', p_clean)
-        clean_paras.append(p_clean)
+    para_text = "\n\n".join(paras)
     
-    para_text = "\n\n".join(clean_paras)
-    if len(para_text) > 2800:
-        para_text = para_text[:2750] + "...\n\n<i>[Teks dipendekkan untuk Telegram. Sila buka Web PWA untuk teks penuh].</i>"
+    is_truncated = False
+    if len(para_text) > 2600:
+        para_text = para_text[:2550]
+        last_break = max(para_text.rfind("\n\n"), para_text.rfind(". "))
+        if last_break > 1500:
+            para_text = para_text[:last_break+1]
+        is_truncated = True
+    
+    clean_body = md_to_telegram_html(para_text)
+    if is_truncated:
+        clean_body += "\n\n<i>[Teks dipendekkan untuk Telegram. Sila buka Web PWA untuk teks penuh].</i>"
     
     fn_text = ""
     if st.get("footnotes"):
         fn_items = []
-        for fn in st["footnotes"][:5]:
+        for fn in st["footnotes"][:4]:
             if isinstance(fn, dict):
                 txt = fn.get("text", "")
                 txt_clean = re.sub(r'<[^>]+>', '', txt)
@@ -580,14 +753,14 @@ def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
             else:
                 txt_clean = re.sub(r'<[^>]+>', '', str(fn))
                 fn_items.append(tg_escape(txt_clean))
-        fn_text = "\n\n<b>📌 Nota Kaki:</b>\n" + "\n".join(fn_items)
+        fn_text = "\n\n<b>📚 Nota Kaki:</b>\n" + "\n".join(fn_items)
     
     raw_title = re.sub(r'^#+\s*', '', st.get('title', ''))
-    raw_title = re.sub(r'[*_`]', '', raw_title)
+    raw_title = re.sub(r'[*_`]', '', raw_title).strip()
     
     text = (
-        f"<b>📌 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>\n\n"
-        f"{tg_escape(para_text)}"
+        f"<b>📖 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>\n\n"
+        f"{clean_body}"
         f"{fn_text}"
     )
     
@@ -605,7 +778,7 @@ def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
     
     if st.get("summary"):
         kb.append([
-            {"text": "📝 Baca Intisari Haraki (Ringkasan)", "callback_data": f"sub_sum_{ch_idx}_{sub_idx}"}
+            {"text": "📌 Baca Intisari Haraki (Ringkasan)", "callback_data": f"sub_sum_{ch_idx}_{sub_idx}"}
         ])
     
     kb.append([
@@ -629,8 +802,12 @@ def handle_hikmah(chat_id, message_id, q_id=None):
     next_id = cur_id + 1 if cur_id < len(HIKMAH_DATA) else 1
     
     arabic_part = f"<b>«{tg_escape(q.get('arabic', ''))}»</b>\n\n" if q.get("arabic") else ""
-    trans_part = f"<i>“{tg_escape(q.get('translation', ''))}”</i>\n\n" if q.get("translation") else ""
-    dimensi_part = f"<b>⚔️ Fiqh Siyasah &amp; Pengajaran:</b>\n{tg_escape(q.get('dimensi', ''))}\n\n" if q.get("dimensi") else ""
+    
+    trans_clean = md_to_telegram_html(q.get('translation', ''))
+    dimensi_clean = md_to_telegram_html(q.get('dimensi', ''))
+    
+    trans_part = f"<blockquote>{trans_clean}</blockquote>\n\n" if trans_clean else ""
+    dimensi_part = f"<b>⚔️ Fiqh Siyasah &amp; Pengajaran:</b>\n{dimensi_clean}\n\n" if dimensi_clean else ""
     
     text = (
         f"<b>💎 MUTIARA HIKMAH FIQH SIYASAH #{cur_id} / {len(HIKMAH_DATA)}</b>\n"
@@ -661,7 +838,7 @@ def handle_hikmah(chat_id, message_id, q_id=None):
 
 def handle_peradaban(chat_id, message_id):
     text = (
-        "<b>🌍 SUMBANGAN TANẒĪR AL-TAGHYĪR DALAM STRATEGI PERADABAN</b>\n\n"
+        "<b>🌐 SUMBANGAN TANẒĪR AL-TAGHYĪR DALAM STRATEGI PERADABAN</b>\n\n"
         "Kitab <i>Tanẓīr al-Taghyīr</i> bukan sekadar ulasan sejarah kebangkitan massa 2011, "
         "sebaliknya ia adalah <b>Enjin Operasi Peralihan Kuasa &amp; Sains Kuantum Siasah</b> "
         "dalam kerangka membina <b>Ummah Fadhilah, Kuasa Nasional &amp; Peradaban Baru Islam (PBI)</b>.\n\n"
@@ -711,11 +888,13 @@ def perform_search(chat_id, query):
     for m in HIKMAH_DATA:
         m_txt = (m.get("translation", "") + " " + m.get("dimensi", "") + " " + m.get("arabic", "")).lower()
         if q_lower in m_txt:
+            snippet = clean_raw_text(m.get("translation", ""))
+            snippet = re.sub(r'[*_`>]', '', snippet).strip()
             results.append({
                 "type": "mutiara",
                 "id": m.get("id"),
                 "title": f"Mutiara #{m.get('id')}: {m.get('speaker', '')}",
-                "snippet": m.get("translation", "")[:120] + "..."
+                "snippet": (snippet[:120] + "...") if len(snippet) > 120 else snippet
             })
             if len(results) >= 4:
                 break
@@ -724,12 +903,15 @@ def perform_search(chat_id, query):
     if len(results) < 8:
         for c_idx, ch in enumerate(CHAPTERS):
             for s_idx, st in enumerate(ch.get("subtopics", [])):
-                paras_clean = [re.sub(r'<[^>]+>', '', p) for p in st.get("paragraphs", [])]
+                paras_clean = [clean_raw_text(p) for p in st.get("paragraphs", [])]
                 st_text = (st.get("title", "") + " " + " ".join(paras_clean)).lower()
                 if q_lower in st_text:
                     raw_title = re.sub(r'^#+\s*', '', st.get("title", ""))
-                    raw_title = re.sub(r'[*_`]', '', raw_title)
-                    snippet = (paras_clean[0] if paras_clean else "")[:120] + "..."
+                    raw_title = re.sub(r'[*_`]', '', raw_title).strip()
+                    snip_raw = paras_clean[0] if paras_clean else ""
+                    snip_clean = re.sub(r'#+\s*', '', snip_raw)
+                    snip_clean = re.sub(r'[*_`>]', '', snip_clean).strip()
+                    snippet = (snip_clean[:120] + "...") if len(snip_clean) > 120 else snip_clean
                     results.append({
                         "type": "subtopic",
                         "ch_idx": c_idx,
@@ -761,7 +943,8 @@ def perform_search(chat_id, query):
             kb.append([{"text": f"💎 {t_short}", "callback_data": f"hikmah_{r['id']}"}])
         else:
             kb.append([{"text": f"📖 {t_short}", "callback_data": f"view_sub_{r['ch_idx']}_{r['sub_idx']}"}])
-    
+        text += f"• <b>{tg_escape(r['title'])}</b>\n<i>{tg_escape(r['snippet'])}</i>\n\n"
+
     kb.append([{"text": "🏠 Menu Utama", "callback_data": "menu_main"}])
     send_msg(chat_id, text, {"inline_keyboard": kb})
 
@@ -852,25 +1035,34 @@ def main_polling():
                         elif data == "menu_search_info":
                             handle_search_info(chat_id, msg_id)
                         elif data == "hikmah_random":
-                            handle_hikmah(chat_id, msg_id)
+                            handle_hikmah(chat_id, msg_id, None)
                         elif data.startswith("hikmah_"):
-                            q_id = int(data.split("_")[1])
+                            parts = data.split("_")
+                            q_id = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
                             handle_hikmah(chat_id, msg_id, q_id)
                         elif data.startswith("ch_subs_"):
                             parts = data.split("_")
-                            handle_subtopics_list(chat_id, msg_id, int(parts[2]), int(parts[3]))
+                            ch_i = int(parts[2])
+                            page = int(parts[3])
+                            handle_subtopics_list(chat_id, msg_id, ch_i, page)
+                        elif data.startswith("ch_"):
+                            ch_i = int(data.split("_")[1])
+                            handle_chapter_view(chat_id, msg_id, ch_i)
                         elif data.startswith("view_sub_"):
                             parts = data.split("_")
-                            handle_subtopic_view(chat_id, msg_id, int(parts[2]), int(parts[3]))
+                            ch_i = int(parts[2])
+                            sub_i = int(parts[3])
+                            handle_subtopic_view(chat_id, msg_id, ch_i, sub_i)
                         elif data.startswith("read_full_"):
                             parts = data.split("_")
-                            handle_subtopic_view(chat_id, msg_id, int(parts[2]), int(parts[3]))
-                        elif data.startswith("ch_"):
-                            ch_idx = int(data.split("_")[1])
-                            handle_chapter_view(chat_id, msg_id, ch_idx)
-
+                            ch_i = int(parts[2])
+                            handle_subtopic_view(chat_id, msg_id, ch_i, 0)
+                            
+        except requests.exceptions.RequestException as e:
+            # Ralat rangkaian sementara (misalnya timeout polling getUpdates 12s)
+            time.sleep(0.5)
         except Exception as e:
-            print(f"Ralat gelung polling: {e}")
+            print(f"Ralat gelung utama polling: {e}", flush=True)
             time.sleep(1)
 
 if __name__ == "__main__":
