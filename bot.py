@@ -89,6 +89,8 @@ print(f"Berjaya memuatkan {len(CHAPTERS)} Bahagian ({TOTAL_SUBTOPICS} Topik) & {
 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+SESSION = requests.Session()
+
 def tg_escape(text):
     """
     Escape khusus untuk mod HTML Telegram.
@@ -100,25 +102,27 @@ def tg_escape(text):
         return ""
     s = str(text)
     s = s.replace(r"\'", "'").replace(r'\"', '"')
+    s = s.replace(r"\&#x27;", "'").replace("&#x27;", "'").replace("&apos;", "'")
     return html.escape(s, quote=False)
 
 def to_tg_html(text):
-    """Pastikan simbol ampersand (&) yang tidak berformat die-escape kepada &amp; untuk Telegram, serta pulihkan &#x27; kepada tanda petik biasa."""
+    """Pastikan simbol ampersand (&) yang tidak berformat die-escape kepada &amp; untuk Telegram, serta pulihkan sebarang entiti tanda petik."""
     if not text:
         return ""
+    text = text.replace(r"\&#x27;", "'").replace(r"&#x27;", "'").replace(r"&apos;", "'")
     text = text.replace(r"\'", "'").replace(r'\"', '"')
-    text = text.replace("&#x27;", "'").replace("&apos;", "'")
     return re.sub(r'&(?!(?:amp|lt|gt|quot|apos|#\d+);)', '&amp;', text)
 
-def call_telegram_api(method, payload):
+def call_telegram_api(method, payload, timeout=8):
     if not BOT_TOKEN or "MASUKKAN" in BOT_TOKEN:
         return None
     url = f"{TELEGRAM_API_URL}/{method}"
     try:
-        r = requests.post(url, json=payload, timeout=25)
+        r = SESSION.post(url, json=payload, timeout=timeout)
         return r.json()
     except Exception as e:
-        print(f"Ralat sambungan API ({method}): {e}")
+        if "getUpdates" not in method:
+            print(f"Ralat sambungan API ({method}): {e}", flush=True)
         return None
 
 def edit_or_send(chat_id, message_id, text, reply_markup=None):
@@ -133,8 +137,11 @@ def edit_or_send(chat_id, message_id, text, reply_markup=None):
     if reply_markup:
         payload["reply_markup"] = reply_markup
     
-    res = call_telegram_api("editMessageText", payload)
+    res = call_telegram_api("editMessageText", payload, timeout=8)
     if not res or not res.get("ok"):
+        err_desc = (res.get("description", "") if res else "").lower()
+        if "message is not modified" in err_desc:
+            return res
         payload_send = {
             "chat_id": chat_id,
             "text": safe_text,
@@ -143,7 +150,7 @@ def edit_or_send(chat_id, message_id, text, reply_markup=None):
         }
         if reply_markup:
             payload_send["reply_markup"] = reply_markup
-        return call_telegram_api("sendMessage", payload_send)
+        return call_telegram_api("sendMessage", payload_send, timeout=8)
     return res
 
 def send_msg(chat_id, text, reply_markup=None):
@@ -544,15 +551,15 @@ def main_polling():
         print("Sila masukkan token rasmi ke dalam config.json untuk mengaktifkan bot secara langsung.", flush=True)
         return
 
-    print("Bot Tanẓīr al-Taghyīr bersedia dan memulakan polling...", flush=True)
+    print("Bot Tanẓīr al-Taghyīr bersedia dan memulakan polling pantas (Fast-Polling)...", flush=True)
     offset = None
     while True:
         try:
-            payload = {"timeout": 30}
+            payload = {"timeout": 5}
             if offset:
                 payload["offset"] = offset
             
-            res = call_telegram_api("getUpdates", payload)
+            res = call_telegram_api("getUpdates", payload, timeout=12)
             if res and res.get("ok"):
                 for upd in res.get("result", []):
                     offset = upd["update_id"] + 1
@@ -628,7 +635,7 @@ def main_polling():
 
         except Exception as e:
             print(f"Ralat gelung polling: {e}")
-            time.sleep(3)
+            time.sleep(1)
 
 if __name__ == "__main__":
     start_health_server()
