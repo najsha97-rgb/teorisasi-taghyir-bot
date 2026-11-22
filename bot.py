@@ -4,7 +4,7 @@ BOT TELEGRAM TANẒĪR AL-TAGHYĪR (تنظير التغيير)
 Membina Teori Integrasi Perubahan Politik Islam
 Karya: Asy-Syeikh Muhammad Ahmad ar-Rasyid (رحمه الله)
 Siri Rujukan Gerakan & Fiqh Siyasah Perubahan
-Versi: 1.2 (Pembersihan Format Intensif: HTML Rasmi Telegram, Blockquote, Tanpa Simbol Mentah)
+Versi: 1.3 (Infografik Khas Telegram, Multi-Page Pagination, Penyingkiran Ralat Epilog)
 """
 
 import os
@@ -16,6 +16,7 @@ import html
 import random
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from bs4 import BeautifulSoup
 import requests
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -94,12 +95,7 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 SESSION = requests.Session()
 
 def tg_escape(text):
-    """
-    Escape khusus untuk mod HTML Telegram.
-    Hanya aksara &, <, > sahaja die-escape kepada &amp;, &lt;, &gt;.
-    Aksara tanda petik ' dan " TIDAK die-escape (quote=False) kerana Telegram
-    memaparkan &#x27; secara mentah pada mesej.
-    """
+    """Escape khusus untuk mod HTML Telegram tanpa meng-escape tanda petik tunggal."""
     if text is None:
         return ""
     s = str(text)
@@ -107,11 +103,190 @@ def tg_escape(text):
     s = s.replace(r"\&#x27;", "'").replace("&#x27;", "'").replace("&apos;", "'")
     return html.escape(s, quote=False)
 
+# ==========================================
+# ENJIN PENUKAR INFOGRAFIK KHAS TELEGRAM
+# ==========================================
+
+def clean_html_markup(s):
+    if not s:
+        return ""
+    # Buang ulasan HTML seperti <!-- RUKUN 1 -->
+    s = re.sub(r'<!--.*?-->', '', s, flags=re.DOTALL)
+    return s
+
+def parse_rukun_infographic(html_str):
+    """Menukar Rukun Model 2026 dalam Epilog menjadi infografik kad Telegram yang lengkap."""
+    soup = BeautifulSoup(clean_html_markup(html_str), "html.parser")
+    badge = soup.find(class_="rukun-badge")
+    ar_title = soup.find(class_="rukun-ar-title")
+    main_title = soup.find(class_="rukun-main-title")
+    subtitle = soup.find(class_="rukun-subtitle")
+    
+    lines = []
+    if badge:
+        lines.append(f"<b>{badge.get_text(strip=True)}</b>")
+    if ar_title:
+        lines.append(f"<i>{ar_title.get_text(strip=True)}</i>")
+    if main_title:
+        lines.append(f"<b>{main_title.get_text(strip=True).upper()}</b>")
+    if subtitle:
+        lines.append(f"<i>{subtitle.get_text(strip=True)}</i>")
+        
+    lines.append("────────────────────")
+    
+    cards = soup.find_all(class_="rukun-card")
+    for c in cards:
+        icon_elem = c.find(class_="rukun-card-icon")
+        icon = icon_elem.get_text(strip=True) if icon_elem else "🔹"
+        
+        tag_elem = c.find(class_="rukun-tag")
+        tag = tag_elem.get_text(strip=True) if tag_elem else ""
+        
+        title_elem = c.find(class_="rukun-card-title")
+        title = title_elem.get_text(strip=True) if title_elem else ""
+        
+        desc_elem = c.find(class_="rukun-card-desc")
+        desc = desc_elem.get_text(" ", strip=True) if desc_elem else ""
+        desc = re.sub(r'\s+', ' ', desc)
+        
+        m_t = re.match(r'^(\d+\.)\s*(.*?)(?:\s*\((.*?)\))?$', title)
+        if m_t:
+            num = m_t.group(1)
+            t_main = m_t.group(2).strip()
+            t_sub = m_t.group(3).strip() if m_t.group(3) else ""
+            t_formatted = f"<b>{num} {t_main}</b>" + (f" <i>({t_sub})</i>" if t_sub else "")
+        else:
+            t_formatted = f"<b>{title}</b>"
+            
+        header_card = f"{icon} <b>[{tag}]</b>\n{t_formatted}" if tag else f"{icon} {t_formatted}"
+        lines.append(f"{header_card}\n• {desc}")
+        
+    note_elem = soup.find(class_="rukun-footer-note")
+    if note_elem:
+        note_txt = note_elem.get_text(" ", strip=True)
+        note_txt = re.sub(r'\s+', ' ', note_txt)
+        lines.append(f"────────────────────\n💡 <i>{note_txt}</i>")
+        
+    return "\n\n".join(lines)
+
+def parse_pentalogi_infographic(html_str):
+    """Menukar Pentalogi Peradaban menjadi kad infografik Telegram."""
+    soup = BeautifulSoup(clean_html_markup(html_str), "html.parser")
+    badge = soup.find(class_="pentalogi-badge")
+    ar_title = soup.find(class_="pentalogi-ar-title")
+    main_title = soup.find(class_="pentalogi-main-title")
+    subtitle = soup.find(class_="pentalogi-subtitle")
+    
+    lines = []
+    if badge: lines.append(f"<b>{badge.get_text(strip=True)}</b>")
+    if ar_title: lines.append(f"<i>{ar_title.get_text(strip=True)}</i>")
+    if main_title: lines.append(f"<b>{main_title.get_text(strip=True).upper()}</b>")
+    if subtitle: lines.append(f"<i>{subtitle.get_text(strip=True)}</i>")
+    lines.append("────────────────────")
+    
+    cards = soup.find_all(class_="pentalogi-card")
+    for c in cards:
+        step = c.find(class_="pentalogi-step")
+        step_txt = step.get_text(strip=True) if step else ""
+        icon = c.find(class_="pentalogi-icon")
+        icon_txt = icon.get_text(strip=True) if icon else "📖"
+        t_ms = c.find(class_="pentalogi-title-ms")
+        ms_txt = t_ms.get_text(strip=True) if t_ms else ""
+        t_ar = c.find(class_="pentalogi-title-ar")
+        ar_txt = t_ar.get_text(strip=True) if t_ar else ""
+        role = c.find(class_="pentalogi-role")
+        role_txt = role.get_text(" ", strip=True) if role else ""
+        desc = c.find(class_="pentalogi-desc")
+        desc_txt = desc.get_text(" ", strip=True) if desc else ""
+        
+        card_str = f"{icon_txt} <b>{step_txt}: {ms_txt}</b> <i>({ar_txt})</i>"
+        if role_txt: card_str += f"\n• <b>Fungsi:</b> {role_txt}"
+        if desc_txt: card_str += f"\n• {desc_txt}"
+        lines.append(card_str)
+        
+    return "\n\n".join(lines)
+
+def parse_tonggak_infographic(html_str):
+    """Menukar 8 Tonggak Kuasa Nasional menjadi kad infografik Telegram."""
+    soup = BeautifulSoup(clean_html_markup(html_str), "html.parser")
+    badge = soup.find(class_="tonggak-badge")
+    ar_title = soup.find(class_="tonggak-ar-title")
+    main_title = soup.find(class_="tonggak-main-title")
+    subtitle = soup.find(class_="tonggak-subtitle")
+    
+    lines = []
+    if badge: lines.append(f"<b>{badge.get_text(strip=True)}</b>")
+    if ar_title: lines.append(f"<i>{ar_title.get_text(strip=True)}</i>")
+    if main_title: lines.append(f"<b>{main_title.get_text(strip=True).upper()}</b>")
+    if subtitle: lines.append(f"<i>{subtitle.get_text(strip=True)}</i>")
+    lines.append("────────────────────")
+    
+    cards = soup.find_all(class_="tonggak-card")
+    for c in cards:
+        title = c.find(class_="tonggak-card-title")
+        t_txt = title.get_text(strip=True) if title else ""
+        core = c.find(class_="tonggak-core")
+        core_txt = core.get_text(" ", strip=True) if core else ""
+        fokus = c.find(class_="tonggak-fokus")
+        fokus_txt = fokus.get_text(" ", strip=True) if fokus else ""
+        
+        card_str = f"🏛️ <b>{t_txt}</b>"
+        if core_txt: card_str += f"\n• <b>Teras:</b> {core_txt}"
+        if fokus_txt: card_str += f"\n• {fokus_txt}"
+        lines.append(card_str)
+        
+    return "\n\n".join(lines)
+
+def parse_epigraf_infographic(html_str):
+    """Menukar seni epigraf kulit belakang menjadi paparan Telegram."""
+    soup = BeautifulSoup(clean_html_markup(html_str), "html.parser")
+    badge = soup.find(class_="epigraf-badge-gold")
+    title = soup.find(class_="epigraf-title")
+    title_ar = soup.find(class_="epigraf-title-ar")
+    blurb_quote = soup.find(class_="epigraf-blurb-quote")
+    
+    lines = []
+    if badge: lines.append(f"<b>{badge.get_text(strip=True)}</b>")
+    if title: lines.append(f"<b>{title.get_text(strip=True)}</b>")
+    if title_ar: lines.append(f"<i>{title_ar.get_text(strip=True)}</i>")
+    lines.append("────────────────────")
+    
+    if blurb_quote:
+        lines.append(f"<blockquote>{blurb_quote.get_text(strip=True)}</blockquote>")
+        
+    points = soup.find_all(class_="epigraf-point")
+    for pt in points:
+        t = pt.find(class_="epigraf-point-title")
+        t_txt = t.get_text(strip=True) if t else ""
+        d = pt.find(class_="epigraf-point-desc")
+        d_txt = d.get_text(" ", strip=True) if d else ""
+        lines.append(f"• <b>{t_txt}:</b> {d_txt}")
+        
+    return "\n\n".join(lines)
+
+def convert_any_infographic(text):
+    if not text:
+        return ""
+    if "rukun-infographic-container" in text:
+        return parse_rukun_infographic(text)
+    elif "pentalogi-infographic-container" in text:
+        return parse_pentalogi_infographic(text)
+    elif "tonggak-infographic-container" in text:
+        return parse_tonggak_infographic(text)
+    elif "epigraf-hero-layout" in text:
+        return parse_epigraf_infographic(text)
+    return text
+
 def clean_raw_text(text):
     """Membersihkan mojibake tanda petik dan tag HTML web yang tidak disokong oleh Telegram."""
     if not text:
         return ""
     s = str(text)
+    # Buang ulasan HTML
+    s = re.sub(r'<!--.*?-->', '', s, flags=re.DOTALL)
+    # Tukar infografik jika ada
+    s = convert_any_infographic(s)
+    
     s = s.replace(r"\&#x27;", "'").replace("&#x27;", "'").replace("&apos;", "'")
     s = s.replace(r"\'", "'").replace(r'\"', '"')
     # Tukar rujukan nota kaki web <span class="fn-ref">...</span> -> [1]
@@ -130,17 +305,11 @@ def format_inline_markdown(s):
     """Menukar sintaks bold & italic Markdown kepada tag HTML Telegram yang sah."""
     if not s:
         return ""
-    # Bold-italic gabungan di hujung: **text *italic**** -> <b>text <i>italic</i></b>
     s = re.sub(r'\*\*([^\*\n]+?)\*([^\*\n]+?)\*\*\*', r'<b>\1<i>\2</i></b>', s)
-    # Bold-italic gabungan di awal: ***italic* text** -> <b><i>\1</i>\2</b>
     s = re.sub(r'\*\*\*([^\*\n]+?)\*([^\*\n]+?)\*\*', r'<b><i>\1</i>\2</b>', s)
-    # Triple asterisks: ***text*** -> <b><i>text</i></b>
     s = re.sub(r'\*\*\*(.+?)\*\*\*', r'<b><i>\1</i></b>', s)
-    # Double asterisks: **text** -> <b>text</b>
     s = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', s)
-    # Single asterisk italic: *text*
     s = re.sub(r'(?<!\*)\*([^\*\n]+?)\*(?!\*)', r'<i>\1</i>', s)
-    # Buang baki tanda asterisk yang tidak berpasangan
     s = s.replace("*", "")
     return s
 
@@ -195,12 +364,6 @@ def balance_telegram_tags(s):
 def md_to_telegram_html(text):
     """
     Penukar penuh format teks & Markdown Tanẓīr al-Taghyīr kepada Telegram HTML rasmi.
-    - Menukar blockquote (> ayat/puisi/petikan) kepada <blockquote>...</blockquote>
-    - Menukar divider (---) kepada garisan pembahagi kemas ────────────────────
-    - Menukar heading (#, ##, ###) kepada <b>Tajuk</b>
-    - Menukar bullet list (-, *) kepada • Item
-    - Menukar bold/italic (**...**, *...*) kepada <b> dan <i>
-    - Melindungi daripada simbol mentah <, >, &, &#x27;
     """
     if not text:
         return ""
@@ -231,7 +394,6 @@ def md_to_telegram_html(text):
     for line in lines:
         l_strip = line.strip()
         
-        # 1. Semak baris blockquote (> atau > )
         m_quote = re.match(r'^(?:>|&gt;)\s*(.*)$', l_strip)
         if m_quote:
             in_quote = True
@@ -243,12 +405,10 @@ def md_to_telegram_html(text):
         else:
             flush_quote()
             
-        # 2. Pembahagi divider (--- atau *** atau ___)
         if re.match(r'^(?:-{3,}|\*{3,}|_{3,})$', l_strip):
             out_lines.append("────────────────────")
             continue
             
-        # 3. Heading Markdown (# Tajuk, ## Subtajuk, ### Poin)
         m_head = re.match(r'^(#{1,6})\s+(.*)$', l_strip)
         if m_head:
             head_txt = m_head.group(2).strip()
@@ -258,7 +418,6 @@ def md_to_telegram_html(text):
             out_lines.append(f"<b>{safe_h}</b>")
             continue
             
-        # 4. Bullet list (- Item, * Item, • Item)
         m_bullet = re.match(r'^[-*•]\s+(.*)$', l_strip)
         if m_bullet:
             b_txt = m_bullet.group(1).strip()
@@ -267,7 +426,6 @@ def md_to_telegram_html(text):
             out_lines.append(f"• {safe_b}")
             continue
             
-        # 5. Baris teks biasa
         if not l_strip:
             out_lines.append("")
             continue
@@ -311,6 +469,51 @@ def split_summary_pages(summary_text, max_len=2200):
     if cur:
         pages.append("\n\n".join(cur))
     return pages
+
+def split_subtopic_pages(paragraphs, max_len=2600):
+    """Memecahkan teks subtajuk kepada beberapa halaman yang mudah dibaca tanpa terputus."""
+    if not paragraphs:
+        return [""]
+    pages = []
+    cur_paras = []
+    cur_len = 0
+    
+    for p in paragraphs:
+        p_str = p.strip()
+        if not p_str:
+            continue
+        p_len = len(p_str)
+        
+        if p_len > max_len:
+            if cur_paras:
+                pages.append("\n\n".join(cur_paras))
+                cur_paras = []
+                cur_len = 0
+            # Pecahkan perenggan sangat panjang ikut ayat
+            sentences = re.split(r'(?<=[.!?\n])\s+', p_str)
+            sub_cur = []
+            sub_len = 0
+            for s in sentences:
+                if sub_len + len(s) > max_len and sub_cur:
+                    pages.append(" ".join(sub_cur))
+                    sub_cur = [s]
+                    sub_len = len(s)
+                else:
+                    sub_cur.append(s)
+                    sub_len += len(s) + 1
+            if sub_cur:
+                pages.append(" ".join(sub_cur))
+        elif cur_len + p_len > max_len and cur_paras:
+            pages.append("\n\n".join(cur_paras))
+            cur_paras = [p_str]
+            cur_len = p_len
+        else:
+            cur_paras.append(p_str)
+            cur_len += p_len + 2
+            
+    if cur_paras:
+        pages.append("\n\n".join(cur_paras))
+    return pages if pages else [""]
 
 def call_telegram_api(method, payload, timeout=8):
     if not BOT_TOKEN or "MASUKKAN" in BOT_TOKEN:
@@ -465,7 +668,6 @@ def handle_chapters_menu(chat_id, message_id):
             {"text": "« Kembali ke Menu Utama", "callback_data": "menu_main"}
         ]
     ]
-    
     text = (
         "<b>📖 SENARAI BAB TANẒĪR AL-TAGHYĪR</b>\n\n"
         "Pilih bab yang ingin anda telaah untuk paparan intisari ilmiah dan pecahan topik terperinci:"
@@ -510,7 +712,7 @@ def handle_chapter_view(chat_id, message_id, ch_idx):
             {"text": "📌 Ringkasan Bab", "callback_data": f"ch_sum_{ch_idx}_0"}
         ],
         [
-            {"text": "📖 Baca Teks Penuh Dari Awal", "callback_data": f"read_full_{ch_idx}_0"}
+            {"text": "📖 Baca Teks Penuh Dari Awal", "callback_data": f"view_sub_{ch_idx}_0_0"}
         ],
         [
             {"text": "« Kembali ke Senarai Bab", "callback_data": "menu_chapters"},
@@ -672,7 +874,7 @@ def handle_subtopic_summary_view(chat_id, message_id, ch_idx, sub_idx):
         kb.append(nav_buttons)
     
     kb.append([
-        {"text": "📖 Baca Terjemahan Teks Penuh", "callback_data": f"view_sub_{ch_idx}_{sub_idx}"}
+        {"text": "📖 Baca Terjemahan Teks Penuh", "callback_data": f"view_sub_{ch_idx}_{sub_idx}_0"}
     ])
     kb.append([
         {"text": f"📑 Senarai Topik {ch['number']}", "callback_data": f"ch_subs_{ch_idx}_{sub_idx//6}"},
@@ -702,7 +904,7 @@ def handle_subtopics_list(chat_id, message_id, ch_idx, page=0):
         st_title = re.sub(r'[*_`]', '', st_title).strip()
         if len(st_title) > 35:
             st_title = st_title[:32] + "..."
-        kb.append([{"text": f"🔹 {st_title}", "callback_data": f"view_sub_{ch_idx}_{s_i}"}])
+        kb.append([{"text": f"🔹 {st_title}", "callback_data": f"view_sub_{ch_idx}_{s_i}_0"}])
     
     nav_row = []
     if page > 0:
@@ -718,7 +920,11 @@ def handle_subtopics_list(chat_id, message_id, ch_idx, page=0):
     ])
     edit_or_send(chat_id, message_id, text, {"inline_keyboard": kb})
 
-def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
+def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx, page=0):
+    """
+    Paparan Subtajuk Lengkap (Versi Penuh) dengan sokongan multi-page dan infografik pintar.
+    Tiada lagi pemotongan teks atau simbol mentah.
+    """
     ch = CHAPTERS[ch_idx]
     subs = ch.get("subtopics", [])
     if sub_idx < 0 or sub_idx >= len(subs):
@@ -726,23 +932,24 @@ def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
         return
     st = subs[sub_idx]
     
-    paras = st.get("paragraphs", [])
-    para_text = "\n\n".join(paras)
+    # Tukar semua perenggan & infografik
+    converted_paras = []
+    for p in st.get("paragraphs", []):
+        p_clean = clean_html_markup(p)
+        if any(k in p_clean for k in ["rukun-infographic-container", "pentalogi-infographic-container", "tonggak-infographic-container", "epigraf-hero-layout"]):
+            p_clean = convert_any_infographic(p_clean)
+        converted_paras.append(p_clean)
+        
+    pages = split_subtopic_pages(converted_paras, max_len=2600)
+    total_pages = len(pages)
+    page = max(0, min(page, total_pages - 1))
     
-    is_truncated = False
-    if len(para_text) > 2600:
-        para_text = para_text[:2550]
-        last_break = max(para_text.rfind("\n\n"), para_text.rfind(". "))
-        if last_break > 1500:
-            para_text = para_text[:last_break+1]
-        is_truncated = True
-    
-    clean_body = md_to_telegram_html(para_text)
-    if is_truncated:
-        clean_body += "\n\n<i>[Teks dipendekkan untuk Telegram. Sila buka Web PWA untuk teks penuh].</i>"
+    cur_text = pages[page]
+    clean_body = md_to_telegram_html(cur_text)
     
     fn_text = ""
-    if st.get("footnotes"):
+    # Paparkan nota kaki pada halaman terakhir jika ada
+    if page == total_pages - 1 and st.get("footnotes"):
         fn_items = []
         for fn in st["footnotes"][:4]:
             if isinstance(fn, dict):
@@ -758,21 +965,32 @@ def handle_subtopic_view(chat_id, message_id, ch_idx, sub_idx):
     raw_title = re.sub(r'^#+\s*', '', st.get('title', ''))
     raw_title = re.sub(r'[*_`]', '', raw_title).strip()
     
+    page_indicator = f" (Halaman {page+1}/{total_pages})" if total_pages > 1 else ""
     text = (
-        f"<b>📖 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>\n\n"
+        f"<b>📖 {tg_escape(ch['number'])}: {tg_escape(raw_title)}</b>{page_indicator}\n\n"
         f"{clean_body}"
         f"{fn_text}"
     )
     
+    # Butang navigasi antara halaman
+    nav_page_row = []
+    if page > 0:
+        nav_page_row.append({"text": "⬅️ Halaman Lalu", "callback_data": f"view_sub_{ch_idx}_{sub_idx}_{page-1}"})
+    if page < total_pages - 1:
+        nav_page_row.append({"text": "Halaman Seterusnya ➡️", "callback_data": f"view_sub_{ch_idx}_{sub_idx}_{page+1}"})
+    
+    # Butang navigasi antara subtajuk
     prev_sub = max(0, sub_idx - 1)
     next_sub = min(len(subs) - 1, sub_idx + 1)
     nav_buttons = []
     if sub_idx > 0:
-        nav_buttons.append({"text": "« Sebelumnya", "callback_data": f"view_sub_{ch_idx}_{prev_sub}"})
+        nav_buttons.append({"text": "« Subtajuk Lalu", "callback_data": f"view_sub_{ch_idx}_{prev_sub}_0"})
     if sub_idx < len(subs) - 1:
-        nav_buttons.append({"text": "Seterusnya »", "callback_data": f"view_sub_{ch_idx}_{next_sub}"})
+        nav_buttons.append({"text": "Subtajuk Seterusnya »", "callback_data": f"view_sub_{ch_idx}_{next_sub}_0"})
     
     kb = []
+    if nav_page_row:
+        kb.append(nav_page_row)
     if nav_buttons:
         kb.append(nav_buttons)
     
@@ -942,7 +1160,7 @@ def perform_search(chat_id, query):
         if r["type"] == "mutiara":
             kb.append([{"text": f"💎 {t_short}", "callback_data": f"hikmah_{r['id']}"}])
         else:
-            kb.append([{"text": f"📖 {t_short}", "callback_data": f"view_sub_{r['ch_idx']}_{r['sub_idx']}"}])
+            kb.append([{"text": f"📖 {t_short}", "callback_data": f"view_sub_{r['ch_idx']}_{r['sub_idx']}_0"}])
         text += f"• <b>{tg_escape(r['title'])}</b>\n<i>{tg_escape(r['snippet'])}</i>\n\n"
 
     kb.append([{"text": "🏠 Menu Utama", "callback_data": "menu_main"}])
@@ -1052,14 +1270,14 @@ def main_polling():
                             parts = data.split("_")
                             ch_i = int(parts[2])
                             sub_i = int(parts[3])
-                            handle_subtopic_view(chat_id, msg_id, ch_i, sub_i)
+                            page_i = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0
+                            handle_subtopic_view(chat_id, msg_id, ch_i, sub_i, page_i)
                         elif data.startswith("read_full_"):
                             parts = data.split("_")
                             ch_i = int(parts[2])
-                            handle_subtopic_view(chat_id, msg_id, ch_i, 0)
+                            handle_subtopic_view(chat_id, msg_id, ch_i, 0, 0)
                             
         except requests.exceptions.RequestException as e:
-            # Ralat rangkaian sementara (misalnya timeout polling getUpdates 12s)
             time.sleep(0.5)
         except Exception as e:
             print(f"Ralat gelung utama polling: {e}", flush=True)
