@@ -40,10 +40,6 @@ import time
 import re
 import html
 import random
-        HTTPServer.allow_reuse_address = True
-        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        print(f"Health-check HTTP Server aktif pada port {port}.")
 
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w", encoding="utf-8")
