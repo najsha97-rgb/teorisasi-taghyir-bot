@@ -22,9 +22,10 @@ import requests
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.send_header("Content-type", "application/json; charset=utf-8")
         self.end_headers()
-        self.wfile.write("Bot Tanẓīr al-Taghyīr Telegram beroperasi 24/7.".encode("utf-8"))
+        response = '{"status":"ok","bot":"Tanzir al-Taghyir","uptime":"24/7"}'
+        self.wfile.write(response.encode("utf-8"))
 
     def log_message(self, format, *args):
         return
