@@ -48,6 +48,21 @@ if sys.platform.startswith("win"):
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
+# Mulakan health server SEGERA sebelum sebarang proses lain
+_early_port = int(os.environ.get("PORT", 0))
+if _early_port:
+    import threading
+    from http.server import HTTPServer, BaseHTTPRequestHandler as _BH
+    class _EarlyHandler(_BH):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-type","application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+        def log_message(self, *a): return
+    threading.Thread(target=HTTPServer(("0.0.0.0",_early_port),_EarlyHandler).serve_forever, 
+daemon=True).start()
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
