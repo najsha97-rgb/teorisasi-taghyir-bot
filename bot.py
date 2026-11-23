@@ -4,14 +4,15 @@ BOT TELEGRAM TANẒĪR AL-TAGHYĪR (تنظير التغيير)
 Membina Teori Integrasi Perubahan Politik Islam
 Karya: Asy-Syeikh Muhammad Ahmad ar-Rasyid (رحمه الله)
 Siri Rujukan Gerakan & Fiqh Siyasah Perubahan
-Versi: 1.4 (Health Server Segera, Render-Stable)
+Versi: 1.5 (Health Server Stabil, SO_REUSEADDR Eksplisit)
 """
 
 # ══════════════════════════════════════════════════════
-# LANGKAH 1: MULAKAN HEALTH SERVER SEGERA (sebelum apa-apa)
-# Ini mencegah ralat 502 & deploy gagal di Render Free Tier
+# MULAKAN HEALTH SERVER SEGERA — sebelum sebarang import lain
+# Subclass dengan SO_REUSEADDR eksplisit mencegah [Errno 98]
 # ══════════════════════════════════════════════════════
 import os
+import socket
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -24,15 +25,24 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
+class RobustHTTPServer(HTTPServer):
+    """HTTPServer dengan SO_REUSEADDR & SO_REUSEPORT untuk elak [Errno 98]."""
+    allow_reuse_address = True
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        super().server_bind()
+
 _PORT = int(os.environ.get("PORT", 0))
 if _PORT:
-    HTTPServer.allow_reuse_address = True
-    _health_server = HTTPServer(("0.0.0.0", _PORT), HealthCheckHandler)
-    threading.Thread(target=_health_server.serve_forever, daemon=True).start()
-    print(f"[TANZIR] Health server aktif pada port {_PORT}", flush=True)
+    try:
+        _health_server = RobustHTTPServer(("0.0.0.0", _PORT), HealthCheckHandler)
+        threading.Thread(target=_health_server.serve_forever, daemon=True).start()
+        print(f"[TANZIR] Health server aktif pada port {_PORT}", flush=True)
+    except OSError as e:
+        print(f"[TANZIR] Health server: {e} — diteruskan tanpa health server", flush=True)
 
 # ══════════════════════════════════════════════════════
-# LANGKAH 2: Import selebihnya & muat data
+# Import selebihnya selepas health server aktif
 # ══════════════════════════════════════════════════════
 import sys
 import json
