@@ -312,7 +312,7 @@ def convert_any_infographic(text):
     return text
 
 def clean_raw_text(text):
-    """Membersihkan mojibake tanda petik dan tag HTML web yang tidak disokong oleh Telegram."""
+    """Membersihkan mojibake tanda petik, LaTeX math, dan tag HTML web yang tidak disokong oleh Telegram."""
     if not text:
         return ""
     s = str(text)
@@ -320,6 +320,14 @@ def clean_raw_text(text):
     s = re.sub(r'<!--.*?-->', '', s, flags=re.DOTALL)
     # Tukar infografik jika ada
     s = convert_any_infographic(s)
+
+    # Buang simbol LaTeX pembahagi (cth: \Large \color{teal}{\blacksquare}...)
+    s = re.sub(r'\$\$\s*\\Large.*?\$\$', '', s, flags=re.DOTALL)
+    s = re.sub(r'\$\$[^\$]*blacksquare[^\$]*\$\$', '', s, flags=re.DOTALL)
+    # Tukar bait syair LaTeX $$\text{...}$$ kepada teks berformat tebal
+    s = re.sub(r'\$\$\s*\\text\{([^}]+)\}\s*\$\$', r'**\1**', s)
+    s = re.sub(r'\\text\{([^}]+)\}', r'\1', s)
+    s = re.sub(r'\$\$', '', s)
     
     s = s.replace(r"\&#x27;", "'").replace("&#x27;", "'").replace("&apos;", "'")
     s = s.replace(r"\'", "'").replace(r'\"', '"')
