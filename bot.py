@@ -4,37 +4,42 @@ BOT TELEGRAM TANẒĪR AL-TAGHYĪR (تنظير التغيير)
 Membina Teori Integrasi Perubahan Politik Islam
 Karya: Asy-Syeikh Muhammad Ahmad ar-Rasyid (رحمه الله)
 Siri Rujukan Gerakan & Fiqh Siyasah Perubahan
-Versi: 1.3 (Infografik Khas Telegram, Multi-Page Pagination, Penyingkiran Ralat Epilog)
+Versi: 1.4 (Health Server Segera, Render-Stable)
 """
 
+# ══════════════════════════════════════════════════════
+# LANGKAH 1: MULAKAN HEALTH SERVER SEGERA (sebelum apa-apa)
+# Ini mencegah ralat 502 & deploy gagal di Render Free Tier
+# ══════════════════════════════════════════════════════
 import os
-import sys
-import json
-import time
-import re
-import html
-import random
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from bs4 import BeautifulSoup
-import requests
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "application/json; charset=utf-8")
         self.end_headers()
-        response = '{"status":"ok","bot":"Tanzir al-Taghyir","uptime":"24/7"}'
-        self.wfile.write(response.encode("utf-8"))
-
+        self.wfile.write(b'{"status":"ok","bot":"Tanzir al-Taghyir","uptime":"24/7"}')
     def log_message(self, format, *args):
         return
 
-def start_health_server():
-    port = int(os.environ.get("PORT", 0))
-    if port:
-        # allow_reuse_address = True mencegah ralat "Address already in use"
-        # semasa Render restart instance bot secara automatik
+_PORT = int(os.environ.get("PORT", 0))
+if _PORT:
+    HTTPServer.allow_reuse_address = True
+    _health_server = HTTPServer(("0.0.0.0", _PORT), HealthCheckHandler)
+    threading.Thread(target=_health_server.serve_forever, daemon=True).start()
+    print(f"[TANZIR] Health server aktif pada port {_PORT}", flush=True)
+
+# ══════════════════════════════════════════════════════
+# LANGKAH 2: Import selebihnya & muat data
+# ══════════════════════════════════════════════════════
+import sys
+import json
+import time
+import re
+import html
+import random
         HTTPServer.allow_reuse_address = True
         server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -1307,5 +1312,4 @@ def main_polling():
             time.sleep(1)
 
 if __name__ == "__main__":
-    start_health_server()
     main_polling()
