@@ -33,6 +33,9 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 def start_health_server():
     port = int(os.environ.get("PORT", 0))
     if port:
+        # allow_reuse_address = True mencegah ralat "Address already in use"
+        # semasa Render restart instance bot secara automatik
+        HTTPServer.allow_reuse_address = True
         server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         print(f"Health-check HTTP Server aktif pada port {port}.")
