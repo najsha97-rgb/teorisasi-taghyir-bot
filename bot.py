@@ -18,10 +18,14 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        self.do_HEAD()
+        self.wfile.write(b'{"status":"ok","bot":"Tanzir al-Taghyir","uptime":"24/7"}')
+
+    def do_HEAD(self):
         self.send_response(200)
         self.send_header("Content-type", "application/json; charset=utf-8")
         self.end_headers()
-        self.wfile.write(b'{"status":"ok","bot":"Tanzir al-Taghyir","uptime":"24/7"}')
+
     def log_message(self, format, *args):
         return
 
